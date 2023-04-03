@@ -56,6 +56,12 @@ To not run any command, set to nil."
   :type '(set (repeat string) (const nil))
   :group 'emacs-everywhere)
 
+(defcustom emacs-everywhere-app-alist-plist
+  nil
+  "Mac app name alias plist."
+  :type '(plist)
+  :group 'emacs-everywhere)
+
 (defcustom emacs-everywhere-copy-command
   (pcase emacs-everywhere--display-server
     ('x11 (list "xclip" "-selection" "clipboard" "%f"))
@@ -88,9 +94,9 @@ When nil, nothing is executed, and pasting is not attempted."
   :group 'emacs-everywhere)
 
 (defcustom emacs-everywhere-markdown-windows
-  '("Reddit" "Stack Exchange" "Stack Overflow" ; Sites
+  '("Reddit" "Stack Exchange" "Stack Overflow"              ; Sites
     "Discord" "Element" "Slack" "HedgeDoc" "HackMD" "Zulip" ; Web Apps
-    "Pull Request" "Issue" "Comparing .*\\.\\.\\.") ; Github
+    "Pull Request" "Issue" "Comparing .*\\.\\.\\.")         ; Github
   "For use with `emacs-everywhere-markdown-p'.
 Patterns which are matched against the window title."
   :type '(rep string)
@@ -241,14 +247,14 @@ This matches FILE against `emacs-everywhere-file-patterns'."
   "Entry point for the executable.
 APP is an `emacs-everywhere-app' struct."
   (let ((file (buffer-file-name (buffer-base-buffer))))
-   (when (and file (emacs-everywhere-file-p file))
-    (let ((app (or (frame-parameter nil 'emacs-everywhere-app)
-                   (emacs-everywhere-app-info))))
-      (setq-local emacs-everywhere-current-app app)
-      (with-demoted-errors "Emacs Everywhere: error running init hooks, %s"
-        (run-hooks 'emacs-everywhere-init-hooks))
-      (emacs-everywhere-mode 1)
-      (setq emacs-everywhere--contents (buffer-string))))))
+    (when (and file (emacs-everywhere-file-p file))
+      (let ((app (or (frame-parameter nil 'emacs-everywhere-app)
+                     (emacs-everywhere-app-info))))
+        (setq-local emacs-everywhere-current-app app)
+        (with-demoted-errors "Emacs Everywhere: error running init hooks, %s"
+          (run-hooks 'emacs-everywhere-init-hooks))
+        (emacs-everywhere-mode 1)
+        (setq emacs-everywhere--contents (buffer-string))))))
 
 ;;;###autoload
 (add-hook 'server-visit-hook #'emacs-everywhere-initialise)
@@ -318,6 +324,9 @@ Never paste content when ABORT is non-nil."
     (sleep-for 0.01) ; prevents weird multi-second pause, lets clipboard info propagate
     (when emacs-everywhere-window-focus-command
       (let* ((window-id (emacs-everywhere-app-id emacs-everywhere-current-app))
+             (window-id (if (plist-get emacs-everywhere-app-alist-plist window-id #'string=)
+                            (plist-get emacs-everywhere-app-alist-plist window-id #'string=)
+                          window-id))
              (window-id-str (if (numberp window-id) (number-to-string window-id) window-id)))
         (apply #'call-process (car emacs-everywhere-window-focus-command)
                nil nil nil
@@ -370,7 +379,7 @@ Never paste content when ABORT is non-nil."
     (when (and (eq system-type 'darwin)
                (string-match-p emacs-everywhere-osascript-accessibility-error-message (buffer-string)))
       (call-process "osascript" nil nil nil
-                        "-e" (format "display alert \"emacs-everywhere\" message \"Emacs has not been granted accessibility permissions, cannot run emacs-everywhere!
+                    "-e" (format "display alert \"emacs-everywhere\" message \"Emacs has not been granted accessibility permissions, cannot run emacs-everywhere!
 Please go to 'System Preferences > Security & Privacy > Privacy > Accessibility' and allow Emacs.\"" ))
       (error "MacOS accessibility error, aborting."))
     (string-trim (buffer-string))))
@@ -502,7 +511,7 @@ return windowTitle"))
       (progn
         (call-process "osascript" nil nil nil
                       "-e" "tell application \"System Events\" to keystroke \"c\" using command down")
-        (sleep-for 0.01) ; lets clipboard info propagate
+        (sleep-for 0.01)               ; lets clipboard info propagate
         (yank))
     (when-let ((selection (gui-get-selection 'PRIMARY 'UTF8_STRING)))
       (gui-backend-set-selection 'PRIMARY "")
